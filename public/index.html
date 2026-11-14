@@ -71,6 +71,7 @@
           <input type="search" id="searchInput" placeholder="搜索邮箱…" autocomplete="off" spellcheck="false">
         </div>
         <div class="filter-row" id="filterRow" role="tablist" aria-label="状态筛选"></div>
+        <div class="filter-row tag-filter-row" id="tagFilterRow" role="tablist" aria-label="标签筛选" hidden></div>
       </div>
       <div class="pane-body" id="accountList" role="list"></div>
     </section>
@@ -119,6 +120,7 @@
       </div>
       <div class="modal-body">
         <p class="hint">每行一个账号，格式：<code>邮箱----密码----client_id----refresh_token</code><br>密码可留空；同邮箱重复导入会自动覆盖并重置状态。</p>
+        <div class="import-tag-row"><label for="importTag">标签（可选）</label><input type="text" id="importTag" placeholder="例如：全新、旧" autocomplete="off"></div>
         <textarea id="importText" rows="10" placeholder="user1@outlook.com----pass----xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx----0.AXoA…" spellcheck="false"></textarea>
         <div class="import-meta" id="importMeta"></div>
         <div class="import-result" id="importResult" hidden></div>

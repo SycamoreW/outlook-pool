@@ -30,6 +30,7 @@
     refresh: '<svg class="ic" viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.61-3.89l.86-.86A.75.75 0 0 1 14 3.78V6.5a.75.75 0 0 1-.75.75h-2.72a.75.75 0 0 1-.53-1.28l.83-.83A4 4 0 1 0 12 8a.75.75 0 0 1 1.5 0Z"/></svg>',
     trash: '<svg class="ic" viewBox="0 0 16 16"><path d="M6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25ZM11 3V1.75A1.75 1.75 0 0 0 9.25 0h-2.5A1.75 1.75 0 0 0 5 1.75V3H1.75a.75.75 0 0 0 0 1.5h.443l.674 9.435A1.75 1.75 0 0 0 4.613 15.5h6.774a1.75 1.75 0 0 0 1.746-1.565L13.807 4.5h.443a.75.75 0 0 0 0-1.5Z"/></svg>',
     back: '<svg class="ic" viewBox="0 0 16 16"><path d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06Z"/></svg>',
+    mail: '<svg class="ic" viewBox="0 0 16 16"><path d="M1.75 2h12.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25v-8.5C0 2.784.784 2 1.75 2ZM1.5 12.251c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V5.809L8.38 9.397a.75.75 0 0 1-.76 0L1.5 5.809v6.442Zm13-8.181v-.32a.25.25 0 0 0-.25-.25H1.75a.25.25 0 0 0-.25.25v.32L8 7.88Z"/></svg>',
     info: '<svg class="ic" viewBox="0 0 16 16"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm9-3a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6.75 7h1.5a.75.75 0 0 1 .75.75V11h.25a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1 0-1.5H7V8.5h-.25a.75.75 0 0 1 0-1.5Z"/></svg>',
   };
 
@@ -80,7 +81,7 @@
     }
   }
 
-  const { getAppPrefix, extractCode, parseImportText, filterAccounts } = window.OutlookPoolCore;
+  const { getAppPrefix, extractCode, parseImportText, filterAccounts, lastMailInfo } = window.OutlookPoolCore;
   const APP_PREFIX = getAppPrefix(location.pathname);
   const API_BASE = `${APP_PREFIX}/api`;
 
@@ -105,6 +106,7 @@
   const state = {
     accounts: [],
     filter: 'all',          // all | ok | error | dead | unknown
+    tagFilter: 'all',       // all | __untagged__ | <tag>
     search: '',
     selectedId: null,
     folder: 'inbox',
@@ -196,13 +198,55 @@
     }));
   }
 
+  function tagCounts() {
+    const counts = new Map();
+    let untagged = 0;
+    for (const a of state.accounts) {
+      const t = String(a.tag || '').trim();
+      if (!t) untagged++;
+      else counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    return { counts, untagged };
+  }
+
+  function renderTagFilterRow() {
+    const row = $('#tagFilterRow');
+    if (!row) return;
+    const { counts, untagged } = tagCounts();
+    if (!counts.size) {
+      row.hidden = true;
+      state.tagFilter = 'all';
+      return;
+    }
+    row.hidden = false;
+    if (state.tagFilter !== 'all' && state.tagFilter !== '__untagged__' && !counts.has(state.tagFilter)) {
+      state.tagFilter = 'all';
+    }
+    const items = [['all', '全部标签', state.accounts.length]];
+    for (const [tag, n] of counts.entries()) items.push([tag, tag, n]);
+    if (untagged > 0) items.push(['__untagged__', '无标签', untagged]);
+
+    row.replaceChildren(...items.map(([key, label, n]) =>
+      el('button', {
+        class: `chip${state.tagFilter === key ? ' active' : ''}`,
+        role: 'tab',
+        'aria-selected': state.tagFilter === key ? 'true' : 'false',
+        onclick: () => { state.tagFilter = key; renderAccounts(); },
+      }, [
+        el('span', { text: label }),
+        el('span', { class: 'chip-n', text: String(n) }),
+      ])
+    ));
+  }
+
   function visibleAccounts() {
-    return filterAccounts(state.accounts, state.filter, state.search);
+    return filterAccounts(state.accounts, state.filter, state.search, state.tagFilter);
   }
 
   function renderAccounts() {
     renderHeaderStats();
     renderFilterRow();
+    renderTagFilterRow();
     const listEl = $('#accountList');
     const rows = visibleAccounts();
 
@@ -218,6 +262,27 @@
     }
 
     listEl.replaceChildren(...rows.map(renderAccountItem));
+  }
+
+  // 账号右侧的「最新邮件时间」（收件箱和垃圾箱里最新的一封）
+  function renderLastMail(a) {
+    const info = lastMailInfo(a);
+    if (info.state === 'has') {
+      return el('span', {
+        class: 'acc-mail', html: ICONS.mail,
+        title: `最新邮件：${fullTime(info.ts)}（收件箱和垃圾箱）`,
+      }, [relTime(info.ts)]);
+    }
+    if (info.state === 'empty') {
+      return el('span', {
+        class: 'acc-mail none', html: ICONS.mail,
+        title: `收件箱和垃圾箱都没有邮件（同步于 ${fullTime(info.sync)}）`,
+      }, ['无邮件']);
+    }
+    return el('span', {
+      class: 'acc-mail none', html: ICONS.mail,
+      title: '还没同步过最新邮件时间，检查此账号或打开它的邮件列表后显示',
+    }, ['未同步']);
   }
 
   function renderAccountItem(a) {
@@ -239,7 +304,15 @@
     item.append(el('span', { class: `acc-status ${st.cls}`, title: st.label }));
 
     const main = el('div', { class: 'acc-main' });
-    main.append(el('div', { class: 'acc-email', text: a.email, title: a.email }));
+    const row1 = el('div', { class: 'acc-row1' });
+    const tagEl = a.tag ? el('span', {
+      class: 'acc-tag',
+      text: a.tag,
+      title: `标签：${a.tag}（点击修改）`,
+      onclick: ev => { ev.stopPropagation(); editAccountTag(a); },
+    }) : null;
+    row1.append(el('div', { class: 'acc-email', text: a.email, title: a.email }), tagEl, renderLastMail(a));
+    main.append(row1);
     const meta = el('div', { class: 'acc-meta' });
     if ((a.status === 'error' || a.status === 'dead') && a.last_error) {
       meta.append(el('span', {
@@ -281,6 +354,18 @@
       toast(`检查失败：${e.message}`, 'err', 4000);
     }
     await loadAccounts({ silent: true });
+  }
+
+  async function editAccountTag(a) {
+    const next = prompt(`设置 ${a.email} 的标签（留空清除）：`, a.tag || '');
+    if (next === null) return;
+    try {
+      await api(`/accounts/${a.id}/tag`, { method: 'PATCH', body: { tag: next.trim() } });
+      await loadAccounts({ silent: true });
+      toast(next.trim() ? `已设为「${next.trim()}」` : '已清除标签', 'ok');
+    } catch (e) {
+      toast(`修改标签失败：${e.message}`, 'err');
+    }
   }
 
   async function deleteAccount(a) {
@@ -537,7 +622,8 @@
     btn.disabled = true;
     btn.textContent = '导入中…';
     try {
-      const j = await api('/accounts/import', { method: 'POST', body: { text } });
+      const tag = ($('#importTag')?.value || '').trim();
+      const j = await api('/accounts/import', { method: 'POST', body: { text, tag } });
       const box = $('#importResult');
       box.hidden = false;
       if (j.bad && j.bad.length) {
@@ -626,7 +712,8 @@
   // ---------------- API 文档弹窗 ----------------
   const API_DOCS = [
     { method: 'GET', path: '/api/quick/random', desc: '随机取一个健康邮箱（status 为 ok/unknown）', example: '{ "email": "xx@outlook.com" }' },
-    { method: 'GET', path: '/api/quick/latest?email=xx@outlook.com&top=5', desc: '按邮箱地址取最新邮件列表（top 最大 20）', example: '{ "email": "...", "messages": [{ "id", "subject", "from", "received", "preview" }] }' },
+    { method: 'GET', path: '/api/quick/latest?email=xx@outlook.com&top=5&include_body=0', desc: '按邮箱地址取最新邮件列表（top 最大 20）；include_body=1 时同时返回完整正文、纯文本、全部链接和 magic_links', example: '{ "email": "...", "messages": [{ "id", "subject", "from", "received", "preview" }] }' },
+    { method: 'GET', path: '/api/quick/message?email=xx@outlook.com&message_id=<id>', desc: '读取单封完整邮件；先从 latest 取得 id，再传入 message_id。返回 HTML/文本正文、收发件人、全部链接和 magic_links', example: '{ "email": "...", "message": { "body": { "content_type": "html", "content": "..." }, "text": "...", "links": [], "magic_links": [] } }' },
     { method: 'GET', path: '/api/quick/code?email=xx@outlook.com&minutes=10&sender=github', desc: '提取最近邮件中的验证码；minutes 限定时间窗，sender 过滤发件人', example: '{ "email": "...", "code": "482913", "subject": "...", "from": "...", "received": "..." }' },
     { method: 'GET', path: '/api/quick/wait-code?email=xx@outlook.com&timeout=60&sender=github', desc: '轮询等待新验证码（timeout 最长 120 秒，适合注册流程接码）', example: '{ "email": "...", "code": "482913", ... }' },
     { method: 'GET', path: '/api/accounts/export', desc: '导出全部账号（原始格式，含 refresh_token）', example: 'email----password----client_id----refresh_token' },

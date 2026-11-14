@@ -217,6 +217,11 @@ body {
 .acc-status.unknown { background: var(--unknown); }
 .acc-main { flex: 1; min-width: 0; }
 .acc-email { font-family: var(--mono); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acc-row1 { display: flex; align-items: center; gap: 8px; }
+.acc-row1 .acc-email { flex: 1; min-width: 0; }
+.acc-mail { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--text-dim); white-space: nowrap; }
+.acc-mail .ic { width: 12px; height: 12px; }
+.acc-mail.none { color: var(--text-faint); }
 .acc-meta { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
 .acc-meta .err { color: var(--warn); }
 .acc-meta .err.dead { color: var(--danger); }
@@ -419,3 +424,10 @@ body {
   .modal-backdrop { padding: 10px; align-items: flex-end; }
   .modal { max-height: calc(100dvh - 20px); border-radius: 14px 14px 0 0; }
 }
+
+/* ============ 标签 ============ */
+.tag-filter-row { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.acc-tag { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--bg-active); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); white-space: nowrap; }
+.acc-tag:hover { filter: brightness(1.1); }
+.import-tag-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12.5px; color: var(--text-dim); }
+.import-tag-row input { flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; }

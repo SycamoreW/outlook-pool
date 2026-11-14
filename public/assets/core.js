@@ -44,14 +44,31 @@
     return { total: lines.length, good, bad };
   }
 
-  function filterAccounts(accounts, filter, search) {
+  function filterAccounts(accounts, filter, search, tagFilter = 'all') {
     const query = String(search || '').trim().toLowerCase();
     return accounts.filter(account => {
       const status = ['ok', 'error', 'dead'].includes(account.status) ? account.status : 'unknown';
       if (filter !== 'all' && status !== filter) return false;
+      if (tagFilter !== 'all') {
+        const tag = String(account.tag || '');
+        if (tagFilter === '__untagged__') {
+          if (tag !== '') return false;
+        } else if (tag !== tagFilter) {
+          return false;
+        }
+      }
       return !query || account.email.toLowerCase().includes(query);
     });
   }
 
-  return { getAppPrefix, extractCode, parseImportText, filterAccounts };
+  // 最新邮件时间的三种状态：has = 有邮件，empty = 同步过但邮箱是空的，never = 还没同步过
+  function lastMailInfo(account) {
+    const at = Number(account && account.last_mail_at) || 0;
+    const sync = Number(account && account.last_mail_sync) || 0;
+    if (at > 0) return { state: 'has', ts: at * 1000, sync: sync * 1000 };
+    if (sync > 0) return { state: 'empty', ts: 0, sync: sync * 1000 };
+    return { state: 'never', ts: 0, sync: 0 };
+  }
+
+  return { getAppPrefix, extractCode, parseImportText, filterAccounts, lastMailInfo };
 });
