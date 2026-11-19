@@ -551,7 +551,9 @@
     detail.append(head);
 
     const bodyWrap = el('div', { class: 'detail-body' });
-    if (msg.body?.contentType === 'html') {
+    const ct = String(msg.body?.contentType || '').toLowerCase();
+    const isHtml = ct === 'html' || /^\s*(?:<!doctype\s+html|<html[\s>])/i.test(bodyContent);
+    if (isHtml) {
       // 沙箱 iframe 渲染 HTML 正文，禁脚本
       const frame = el('iframe', { class: 'detail-frame', sandbox: 'allow-popups allow-popups-to-escape-sandbox', referrerpolicy: 'no-referrer' });
       bodyWrap.append(frame);
